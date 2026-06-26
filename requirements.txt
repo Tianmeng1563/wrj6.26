@@ -1,7 +1,7 @@
 streamlit
 streamlit-folium
 folium
-pyvis
-pandas
+streamlit-option-menu
 numpy
-scipy
+shapely
+pandas
