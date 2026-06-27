@@ -10,8 +10,8 @@ import os
 import numpy as np
 from shapely.geometry import LineString, Polygon
 
-# 页面配置必须在最前面
-st.set_page_config(layout="wide", page_title="南科院无人机航线规划")
+# ===================== 页面配置（匹配浏览器标题：南科院-无人机导航系统）=====================
+st.set_page_config(layout="wide", page_title="南京科技职业学院-无人机导航系统")
 
 SAVE_FILE = "drone_data.json"
 
@@ -19,7 +19,7 @@ def load_all_data():
     if os.path.exists(SAVE_FILE):
         with open(SAVE_FILE,"r",encoding="utf-8") as f:
             return json.load(f)
-    # ===================== 南科院校内精准坐标 都在校园里面 =====================
+    # 南科院校内精准坐标
     return {
         "A": [32.2346, 118.7492],   # 校内操场
         "B": [32.2335, 118.7505],   # 校内实训楼
@@ -47,25 +47,37 @@ default_states = {
     "flight_running": False, "flight_paused": False, "current_wp_idx": 0,
     "flight_speed": 8.5, "flight_start_time": None, "flight_waypoints": [],
     "battery": 100.0, "total_distance": 0.0, "elapsed_distance": 0.0,
-    "route_side": "auto"
+    "route_side": "auto",
+    "map_tile_type": "卫星影像地图" # 底图切换缓存
 }
 
 for key, val in default_states.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-# --------------------------通信拓扑模块--------------------------
-st.header("通信链路拓扑与数据流")
-# 设备在线状态
-col_gcs, col_obc, col_fcu = st.columns(3)
-with col_gcs:
-    st.checkbox("GCS在线", value=True, disabled=True)
-with col_obc:
-    st.checkbox("OBC在线", value=True, disabled=True)
-with col_fcu:
-    st.checkbox("FCU在线", value=True, disabled=True)
+# ===================== 顶部：地图图层切换控件（匹配截图顶部单选）=====================
+map_mode = st.radio("地图图层", ["高德普通地图", "卫星影像地图"], horizontal=True, index=["高德普通地图", "卫星影像地图"].index(st.session_state.map_tile_type))
+st.session_state.map_tile_type = map_mode
+# 高德瓦片地址
+if map_mode == "高德普通地图":
+    tile_url = "https://webst01.is.autonavi.com/appmaptile?style=7&x={x}&y={y}&z={z}"
+else:
+    tile_url = "https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}"
+tile_attr = "高德地图"
 
-# 链路连接信息文本展示
+# --------------------------通信拓扑模块（匹配第二张截图UI）--------------------------
+st.header("通信链路拓扑与数据流")
+# 绿色在线状态按钮
+col_gcs, col_obc, col_fcu, col_link = st.columns(4)
+with col_gcs:
+    st.button("🟢 GCS在线", disabled=True, use_container_width=True, type="primary")
+with col_obc:
+    st.button("🟢 OBC在线", disabled=True, use_container_width=True, type="primary")
+with col_fcu:
+    st.button("🟢 FCU在线", disabled=True, use_container_width=True, type="primary")
+with col_link:
+    st.button("📊 链路正常", disabled=True, use_container_width=True)
+
 st.subheader("链路连接信息")
 link_col1, link_col2, link_col3 = st.columns(3)
 with link_col1:
@@ -80,21 +92,29 @@ with link_col3:
     st.text("通信协议：MAVLink")
     st.text("固件：PX4 / ArduPilot")
 
-# 链路统计信息
 st.info("链路统计：GCS↔OBC：通信正常 | OBC↔FCU：通信正常 | 链路延迟：~25ms | 丢包率：0.1%")
 
-# 通信日志标签页
+# 三栏日志标签页（完全匹配截图日志内容）
 st.subheader("通信日志")
 tab_business, tab_gof, tab_fog = st.tabs(["业务流程", "GCS→OBC→FCU", "FCU→OBC→GCS"])
 with tab_business:
-    st.text_area("业务流程日志", """航线规划完成 | type:horizontal | 航点数:9 | 路径长度:359.8m
+    st.text_area("业务流程日志", """[05:37:32.719] 地图点击添加障碍物打点: 经纬度
+32.23369935684798,118.74737441539764
+
+[05:37:47.314] 地图点击添加障碍物打点: 经纬度
+32.23398976609792,118.74951481819154
+
+[05:37:53.367] 地图点击添加障碍物打点: 经纬度
+32.23412684512736,118.75023617744446
+
+航线规划完成 | type:horizontal | 航点数:9 | 路径长度:359.8m
 OBC 内部
 [14:36:01.607] 航线规划执行成功
 航线规划完成 | type:horizontal | 航点数:10 | 路径长度:356.3m
 OBC 内部
 [14:32:54.650] 开始航线规划 | 算法:A* | 障碍物数量:6
 导航目标：起点(32.234368, 118.744358) 终点(32.236468, 118.744058) 高度10m
-GCS下发航线指令至OBC""", height=220)
+GCS下发航线指令至OBC""", height=260)
 with tab_gof:
     st.text_area("下行通信日志", """[15:03:03.08] GCS→OBC→FCU：任务启动指令
 [15:03:10] OBC转发导航指令至FCU
@@ -109,7 +129,7 @@ OBC汇总状态上传至GCS""", height=220)
 st.divider()
 # ----------------------------------------------------------------------------------------
 
-# 航线偏移、避障计算
+# 航线偏移、避障计算函数（保留原有A*偏移逻辑）
 def calc_route_lines(pA,pB,offset=0.0001):
     latA,lonA=pA
     latB,lonB=pB
@@ -153,10 +173,10 @@ def get_safe_route(pA, pB, obstacles, safe_dist, route_side="auto"):
     else:
         return right_line, True
 
-# 侧边栏
+# ===================== 左侧侧边栏导航（匹配第一张截图左侧「导航」菜单）=====================
 with st.sidebar:
-    st.title("🚁 无人机系统导航")
-    page=option_menu("功能页面",["航线规划","飞行监控"],default_index=0)
+    st.title("🧭 导航")
+    page=option_menu("",["航线规划","飞行监控"],default_index=0)
     st.divider()
     st.subheader("系统点位状态")
     st.button("✅ A点已设置" if st.session_state.A_set else "❌ A点未设置",type="primary")
@@ -164,11 +184,10 @@ with st.sidebar:
     st.divider()
     st.subheader("🛡️ 安全半径配置")
     st.session_state.safe_radius = st.slider("航线与障碍物安全距离", 0.00005, 0.0005, value=st.session_state.safe_radius, step=0.00001, format="%.5f")
-    st.session_state.route_side = st.radio("绕飞方向", ["left", "right", "auto"], index=2)
 
-# 航线规划页面
+# ===================== 航线规划页面 =====================
 if page=="航线规划":
-    st.title("🚁 南京科技职业学院 无人机避障航线规划")
+    st.title("🚁 无人机航线导航与监控系统 - 航线规划页面")
     col_map,col_ctrl=st.columns([3.2,1])
     with col_ctrl:
         st.subheader("🎛️ 点位与飞行参数")
@@ -187,6 +206,24 @@ if page=="航线规划":
             st.session_state.B_set=True
             save_all_data()
             st.success("B点已保存")
+        st.divider()
+        # ========== 三按钮绕障策略（匹配第一张截图：上绕越障/左绕/右绕）==========
+        st.subheader("🛡️ 绕障策略选择")
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("✖ 上绕越障", use_container_width=True):
+                # 垂直越障：高度抬高至障碍物上方15米
+                st.session_state.height = st.session_state.obs_h + 15
+                st.session_state.route_side = "auto"
+                st.success("已切换：垂直上绕越障，飞行高度自动抬高")
+        with b2:
+            if st.button("✖ 左绕航线", use_container_width=True):
+                st.session_state.route_side = "left"
+                st.success("已切换：左侧横向绕障航线")
+        with b3:
+            if st.button("✖ 右绕航线", use_container_width=True):
+                st.session_state.route_side = "right"
+                st.success("已切换：右侧横向绕障航线")
         st.divider()
         st.subheader("🚧 障碍物圈选")
         st.session_state.obs_h=st.number_input("障碍物高度(m)",0,300,value=st.session_state.obs_h)
@@ -226,17 +263,16 @@ if page=="航线规划":
     with col_map:
         center_lat=(st.session_state.A[0]+st.session_state.B[0])/2
         center_lon=(st.session_state.A[1]+st.session_state.B[1])/2
-        # 高德卫星地图
+        # 动态切换高德普通/卫星底图
         m=folium.Map(
             location=[center_lat,center_lon],
             zoom_start=19,
-            tiles="https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-            attr="高德卫星地图",
+            tiles=tile_url,
+            attr=tile_attr,
             max_zoom=22
         )
         folium.plugins.Fullscreen(position="topright").add_to(m)
 
-        # 直接用原始校内坐标，不做偏移
         A_raw = st.session_state.A
         B_raw = st.session_state.B
 
@@ -272,9 +308,9 @@ if page=="航线规划":
                     st.session_state.last_click_time = now
                     st.rerun()
 
-# 飞行监控页面
+# ===================== 飞行监控页面 =====================
 else:
-    st.title("📡 飞行实时监控 - 任务执行")
+    st.title("✈️ 飞行实时画面 - 任务执行监控")
     st.success("✅ 无人机链路正常 设备在线")
     col_btn = st.columns(4)
     with col_btn[0]:
@@ -319,7 +355,6 @@ else:
                 st.session_state.flight_running = False
                 st.success("🎉 飞行任务完成")
 
-        # 修复：强制限制进度值 0~1，不会再报错
         progress = st.session_state.current_wp_idx / (len(st.session_state.flight_waypoints)-1)
         progress = min(progress, 1.0)
         st.progress(progress, text=f"任务进度：{round(progress*100,1)}%")
@@ -327,11 +362,12 @@ else:
         col_map_flight, col_status = st.columns([2,1])
         with col_map_flight:
             st.subheader("🗺️ 实时飞行地图")
+            # 飞行页同步切换底图
             m_flight = folium.Map(
                 location=st.session_state.flight_waypoints[0],
                 zoom_start=19,
-                tiles="https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-                attr="高德卫星地图"
+                tiles=tile_url,
+                attr=tile_attr
             )
             for idx,obs in enumerate(st.session_state.polygon_memory):
                 pts=obs["pts"]
